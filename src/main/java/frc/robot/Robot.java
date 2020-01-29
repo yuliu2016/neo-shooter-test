@@ -7,19 +7,15 @@
 
 package frc.robot;
 
-import java.net.Socket;
 
-import com.revrobotics.CANPIDController;
 import com.revrobotics.CANSparkMax;
-import com.revrobotics.ControlType;
 import com.revrobotics.CANSparkMax.IdleMode;
 import com.revrobotics.CANSparkMaxLowLevel.MotorType;
 
-import edu.wpi.first.networktables.NetworkTable;
-import edu.wpi.first.networktables.NetworkTableEntry;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.wpilibj.MotorSafety;
 import edu.wpi.first.wpilibj.TimedRobot;
+import edu.wpi.first.wpilibj.XboxController;
+import edu.wpi.first.wpilibj.GenericHID.Hand;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpiutil.math.MathUtil;
 
 /**
@@ -35,34 +31,19 @@ public class Robot extends TimedRobot {
     CANSparkMax motor2 = new CANSparkMax(22, MotorType.kBrushless);
 
     {
-    
         motor1.restoreFactoryDefaults();
         motor2.restoreFactoryDefaults();
         motor2.setIdleMode(IdleMode.kCoast);
         motor1.setIdleMode(IdleMode.kCoast);
-        // motor2.setOpenLoopRampRate(5.0);
-        // motor2.setOpenLoopRampRate(5.0);
-        motor2.follow(motor1);
+        motor1.setOpenLoopRampRate(2.0);
+        motor2.setOpenLoopRampRate(2.0);
+
+        motor2.setInverted(true);
     }
 
-    CANPIDController pid = motor1.getPIDController();
+    XboxController controller = new XboxController(0);
 
-    NetworkTableInstance inst = NetworkTableInstance.getDefault();
-    NetworkTable table = inst.getTable("shooter test");
-    NetworkTableEntry setpoint = table.getEntry("setpoint");
-    NetworkTableEntry pEntry = table.getEntry("kP");
-    NetworkTableEntry iEntry = table.getEntry("kI");
-    NetworkTableEntry dEntry = table.getEntry("kD");
-    NetworkTableEntry vEntry = table.getEntry("velocity");
 
-    {
-        setpoint.setDouble(100.0);
-        pEntry.setDouble(0.001);
-        iEntry.setDouble(0.0);
-        dEntry.setDouble(0.0);
-        vEntry.setDouble(0.0);
-    }
-    
     /**
     * This function is run when the robot is first started up and should be used
     * for any initialization code.
@@ -81,20 +62,32 @@ public class Robot extends TimedRobot {
     
     @Override
     public void teleopInit() {
-        pid.setP(pEntry.getDouble(0.0));
-        pid.setI(iEntry.getDouble(0.0));
-        pid.setD(dEntry.getDouble(0.0));
-        pid.setOutputRange(-1.0, 0.0);
+        motor1.set(0);
+        motor2.set(0);
+        speed = 0.0;
     }
+
+    double speed = 0;
+    LatchedBoolean leftLatch = new LatchedBoolean();
+    LatchedBoolean rightLatch = new LatchedBoolean();
     
     @Override
     public void teleopPeriodic() {
-        pid.setP(pEntry.getDouble(0.0));
-        pid.setI(iEntry.getDouble(0.0));
-        pid.setD(dEntry.getDouble(0.0));
-        pid.setReference(-1 * MathUtil.clamp(setpoint
-                .getDouble(0.0), 0.0, 5000.0), ControlType.kVelocity);
-        vEntry.getDouble(motor1.getEncoder().getVelocity());
+        if (leftLatch.update(controller.getBumper(Hand.kLeft))) {
+            speed = MathUtil.clamp(speed - 0.005, -1, 1);
+        }
+        if (rightLatch.update(controller.getBumper(Hand.kRight))) {
+            speed = MathUtil.clamp(speed + 0.005, -1, 1);
+        }
+        if (controller.getAButton()) {
+            speed = 0.0;
+        }
+        if (controller.getBButton()) {
+            speed = 0.3;
+        }
+        motor1.set(-speed);
+        motor2.set(-speed);
+        SmartDashboard.putNumber("flywheelSpeed", speed);
     }
     
     @Override
